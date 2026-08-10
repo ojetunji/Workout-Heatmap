@@ -13,7 +13,7 @@ Interactive workout heatmap prototype built in SwiftUI. Inspired by GitHub-style
 
 ---
 
-### 2. Rest Day Toast & Error Shake Micro-Animation
+### 2. Rest Day Toast & 'Shake' Micro-Animation
 * **Haptic Feedback:** Triggers native system haptics (`.sensoryFeedback(.error)`) on rest day selection.
 * **Horizontal Sine-Wave Shake:** Uses a custom `GeometryEffect` (`ShakeEffect`) driven by `animatableData` to perform a springy horizontal error shake.
 * **Self-Healing Dismissal Timer:** Uses a unique `@State private var toastID` token to cleanly reset auto-dismiss timers when tapping rest bars repeatedly without interrupting the shake physics.
@@ -34,7 +34,7 @@ Interactive workout heatmap prototype built in SwiftUI. Inspired by GitHub-style
 
 ---
 
-## 🛠️ Micro-Animation Reference
+## Micro-Animation Reference
 
 | Animation Element | Implementation Mechanism | Parameters / Curve |
 | :--- | :--- | :--- |
@@ -45,18 +45,3 @@ Interactive workout heatmap prototype built in SwiftUI. Inspired by GitHub-style
 | **Card Hover & Tap** | `.scaleEffect()` driven by hover/gesture state | `.easeOut(duration: 0.15)` |
 
 ---
-
-## 📁 File Structure
-
-```text
-WorkoutHeatmap/
-├── Models/
-│   ├── Song.swift
-│   └── WorkoutDay.swift
-├── Views/
-│   ├── WorkoutHeatmapView.swift      # Main container & heatmap logic
-│   ├── WorkoutDetailModal.swift      # Expandable card modal
-│   ├── InteractivePlaylistCard.swift # Music player container with press states
-│   └── SpotifyThumbnailView.swift   # Asset loader & Spotify oEmbed fetcher
-└── Modifiers/
-    └── ShakeEffect.swift             # GeometryEffect for rest day toast
