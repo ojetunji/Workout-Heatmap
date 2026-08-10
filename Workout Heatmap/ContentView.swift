@@ -11,12 +11,13 @@ struct Song: Identifiable {
     let id = UUID()
     let title: String
     let artist: String
+    let playlistURL: String
 }
 
 struct WorkoutDay: Identifiable {
     let id = UUID()
     let date: Date
-    let durationMinutes: Int
+    let durationMinutes: Int // 0 = rest day
     let workoutType: String?
     let typeIcon: String?
     let location: String?
@@ -36,11 +37,32 @@ struct WorkoutDay: Identifiable {
     }
 }
 
+// MARK: - Custom Shake Effect Modifier
+struct ShakeEffect: GeometryEffect {
+    var amount: CGFloat = 8
+    var shakesPerUnit: CGFloat = 3
+    var animatableData: CGFloat
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(
+            CGAffineTransform(translationX: amount * sin(animatableData * .pi * shakesPerUnit), y: 0)
+        )
+    }
+}
+
+extension View {
+    func errorShake(trigger: Int) -> some View {
+        self.modifier(ShakeEffect(animatableData: CGFloat(trigger)))
+    }
+}
+
 // MARK: - Main View
 struct WorkoutHeatmapView: View {
     @State private var days: [WorkoutDay] = WorkoutHeatmapView.generateMockData()
     @State private var selectedDay: WorkoutDay? = nil
     @State private var showRestToast: Bool = false
+    @State private var shakeTrigger: Int = 0
+    @State private var errorHapticFeedback: Int = 0
     
     private var currentStreak: Int {
         var streak = 0
@@ -61,11 +83,11 @@ struct WorkoutHeatmapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             
-            // Header
+            // MARK: Top Header & Stat Badges
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("August 2026")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 16, weight: .bold))
                     Text("Past 30 Days")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -73,18 +95,17 @@ struct WorkoutHeatmapView: View {
                 
                 Spacer(minLength: 12)
                 
-                // Stat Pills
                 HStack(spacing: 6) {
                     HStack(spacing: 3) {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.system(size: 10))
                             .foregroundStyle(.pink)
-                        Text("\(totalActiveDays)/30 Days")
+                        Text("\(totalActiveDays) workouts")
                             .font(.system(size: 11, weight: .medium))
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.gray.opacity(0.1), in: Capsule())
+                    .background(Color.pink.opacity(0.1), in: Capsule())
 
                     HStack(spacing: 3) {
                         Image(systemName: "flame.fill")
@@ -95,25 +116,30 @@ struct WorkoutHeatmapView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.gray.opacity(0.1), in: Capsule())
+                    .background(Color.orange.opacity(0.1), in: Capsule())
                 }
             }
             
-            // Heatmap Bar Row
-            HStack(spacing: 6) {
+            // MARK: Vertical Bar Heatmap
+            HStack(spacing: 4) {
                 ForEach(days) { day in
                     let isSelected = selectedDay?.id == day.id
                     let isAnySelected = selectedDay != nil
                     
                     Capsule()
                         .fill(day.barColor)
-                        .frame(width: 6, height: isSelected ? 48 : 32)
+                        .frame(width: 4, height: isSelected ? 48 : 32)
                         .shadow(color: isSelected ? Color.pink.opacity(0.6) : .clear, radius: 4)
                         .opacity(isAnySelected ? (isSelected ? 1.0 : 0.35) : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedDay?.id)
                         .onTapGesture {
                             if day.durationMinutes == 0 {
-                                showRestToast = true
+                                // Trigger error feedback & shake animation
+                                errorHapticFeedback += 1
+                                withAnimation(.default) {
+                                    shakeTrigger += 1
+                                    showRestToast = true
+                                }
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     selectedDay = nil
                                 }
@@ -123,37 +149,12 @@ struct WorkoutHeatmapView: View {
                                 }
                             }
                         }
-                        .sensoryFeedback(
-                            day.durationMinutes == 0 ? .error : .impact(weight: .medium),
-                            trigger: selectedDay?.id
-                        )
                 }
             }
             .frame(height: 50)
+            .sensoryFeedback(.error, trigger: errorHapticFeedback)
             
-            // Rest Toast
-            if showRestToast {
-                HStack(spacing: 6) {
-                    Image(systemName: "moon.stars.fill")
-                        .font(.caption)
-                        .foregroundStyle(.indigo)
-                    Text("Nothing to show here!")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.indigo.opacity(0.1), in: Capsule())
-                .overlay(Capsule().stroke(Color.indigo.opacity(0.2), lineWidth: 1))
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        withAnimation { showRestToast = false }
-                    }
-                }
-            }
-
-            // Modal Card
+            // MARK: Expandable Dropdown Card
             if let day = selectedDay {
                 WorkoutDetailModal(day: day) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -165,12 +166,40 @@ struct WorkoutHeatmapView: View {
                     removal: .opacity.combined(with: .scale(scale: 0.98))
                 ))
             }
+            
+            // MARK: Toast PopUp
+            if showRestToast {
+                HStack(spacing: 8) {
+                    Text("🛌")
+                        .font(.system(size: 12))
+                    Text("Rest day!")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color(white: 0.12), in: Capsule())
+                .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
+                .errorShake(trigger: shakeTrigger)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                    removal: .opacity
+                ))
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showRestToast = false
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
         }
         .padding(16)
         .fixedSize(horizontal: false, vertical: true)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(.windowBackgroundColor)) // Pure cross-platform system fill
+                .fill(Color.white)
                 .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 4)
         )
         .overlay(
@@ -179,6 +208,7 @@ struct WorkoutHeatmapView: View {
         )
     }
 
+    // MARK: - Mock Data Generator
     static func generateMockData() -> [WorkoutDay] {
         let calendar = Calendar.current
         let today = Date()
@@ -191,9 +221,9 @@ struct WorkoutHeatmapView: View {
         ]
         
         let sampleSongs = [
-            Song(title: "Scott Street", artist: "Phoebe Bridgers"),
-            Song(title: "Tennessee Heat", artist: "Katie Tupper"),
-            Song(title: "Be About You", artist: "Winston Surfshirt")
+            Song(title: "Novia Robot", artist: "Rosalia", playlistURL: "https://open.spotify.com/track/501aZny32oS5iewdx3e4Eu?si=9f1b84d3164a4d0b"),
+            Song(title: "Tennessee Heat", artist: "Katie Tupper", playlistURL: "https://open.spotify.com"),
+            Song(title: "Be About You", artist: "Winston Surfshirt", playlistURL: "https://open.spotify.com")
         ]
 
         return (0..<30).compactMap { offset in
@@ -221,70 +251,7 @@ struct WorkoutHeatmapView: View {
     }
 }
 
-// MARK: - Vinyl Disc Record View
-struct VinylRecordView: View {
-    let song: Song
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.black)
-                        .frame(width: 56, height: 56)
-                    
-                    Circle()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                        .frame(width: 46, height: 46)
-                    Circle()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                        .frame(width: 36, height: 36)
-                    
-                    Circle()
-                        .fill(LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 24, height: 24)
-                    
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 5, height: 5)
-                }
-                
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(song.title)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.primary)
-                    Text(song.artist)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-            }
-            .padding(10)
-            .background(Color.primary.opacity(0.02))
-            
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 6, height: 6)
-                Text("Listening now")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.primary.opacity(0.04))
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-        )
-    }
-}
-
-// MARK: - Detail Modal (Simplified expression hierarchy)
+// MARK: - Dropdown Modal Subview
 struct WorkoutDetailModal: View {
     let day: WorkoutDay
     let onClose: () -> Void
@@ -292,65 +259,96 @@ struct WorkoutDetailModal: View {
     var body: some View {
         VStack(spacing: 12) {
             
-            // Header Info Box
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
+            // Header Row with Top-Right Close Button
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
                     Label(day.workoutType ?? "Workout", systemImage: day.typeIcon ?? "figure.run")
                         .font(.system(size: 13, weight: .semibold))
-                    Spacer()
-                    Text(day.date.formatted(date: .abbreviated, time: .omitted))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    
+                    HStack(spacing: 12) {
+                        Label("\(day.durationMinutes) mins", systemImage: "clock")
+                        Label(day.location ?? "Gym", systemImage: day.location == "Home" ? "house.fill" : "building.2.fill")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 
-                HStack(spacing: 12) {
-                    Label("\(day.durationMinutes) mins", systemImage: "clock")
-                    Label(day.location ?? "Gym", systemImage: day.location == "Home" ? "house.fill" : "building.2.fill")
+                Spacer()
+                
+                // Top-Right Icon-Only Close Button
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(4)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
             .padding(12)
             .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            // Music View
-            if let song = day.songs.first {
-                VinylRecordView(song: song)
-            }
-
-            // Close Button
-            Button(action: onClose) {
-                HStack(spacing: 4) {
-                    Image(systemName: "xmark.circle")
-                        .font(.system(size: 12, weight: .bold))
-                    Text("Close")
-                        .font(.system(size: 12, weight: .bold))
+            // Music / Playlist Link Card
+            if let song = day.songs.first, let url = URL(string: song.playlistURL) {
+                Link(destination: url) {
+                    HStack(spacing: 12) {
+                        // Squoval Thumbnail Image
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            
+                            Image(systemName: "music.note.list")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: 44, height: 44)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Workout Playlist")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.primary)
+                            
+                            Text("\(song.title) • \(song.artist)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(10)
+                    .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
                 }
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
             }
         }
         .padding(12)
-        .background(modalBackground)
-    }
-    
-    // Extracted view property to simplify type-checking
-    private var modalBackground: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color.primary.opacity(0.02))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.gray.opacity(0.1))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 
-#Preview {
-    WorkoutHeatmapView()
+// MARK: - Preview Window
+#Preview("Centered Device Prototype") {
+    ZStack {
+        // Multi Platform Screen Background
+        Color(.white)
+            .ignoresSafeArea()
+        
+        // Centered Card Container with Inset Padding
+        WorkoutHeatmapView()
+            .frame(maxWidth: 360)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 40)
+    }
 }
