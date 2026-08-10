@@ -37,23 +37,19 @@ struct WorkoutDay: Identifiable {
     }
 }
 
-// MARK: - Custom Shake Effect Modifier
+// MARK: - Shake Effect
 struct ShakeEffect: GeometryEffect {
-    var amount: CGFloat = 8
-    var shakesPerUnit: CGFloat = 3
     var animatableData: CGFloat
 
     func effectValue(size: CGSize) -> ProjectionTransform {
-        ProjectionTransform(
-            CGAffineTransform(translationX: amount * sin(animatableData * .pi * shakesPerUnit), y: 0)
-        )
+            let translation = 8 * sin(animatableData * .pi * 3)
+            return ProjectionTransform(CGAffineTransform(translationX: translation, y: 0))
+        }
     }
-}
 
-extension View {
-    func errorShake(trigger: Int) -> some View {
-        self.modifier(ShakeEffect(animatableData: CGFloat(trigger)))
-    }
+    extension View {
+        func errorShake(trigger: CGFloat) -> some View {
+            self.modifier(ShakeEffect(animatableData: trigger))   }
 }
 
 // MARK: - Main View
@@ -61,8 +57,9 @@ struct WorkoutHeatmapView: View {
     @State private var days: [WorkoutDay] = WorkoutHeatmapView.generateMockData()
     @State private var selectedDay: WorkoutDay? = nil
     @State private var showRestToast: Bool = false
-    @State private var shakeTrigger: Int = 0
+    @State private var shakeOffset: CGFloat = 0
     @State private var errorHapticFeedback: Int = 0
+    @State private var toastID = UUID()
     
     private var currentStreak: Int {
         var streak = 0
@@ -120,8 +117,9 @@ struct WorkoutHeatmapView: View {
                 }
             }
             
-            // MARK: Vertical Bar Heatmap
-            HStack(spacing: 4) {
+            // MARK: Vertical Heatmap
+            HStack(spacing: 8
+            ) {
                 ForEach(days) { day in
                     let isSelected = selectedDay?.id == day.id
                     let isAnySelected = selectedDay != nil
@@ -134,13 +132,12 @@ struct WorkoutHeatmapView: View {
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedDay?.id)
                         .onTapGesture {
                             if day.durationMinutes == 0 {
-                                // Trigger error feedback & shake animation
                                 errorHapticFeedback += 1
-                                withAnimation(.default) {
-                                    shakeTrigger += 1
-                                    showRestToast = true
-                                }
+                                toastID = UUID() // Refresh the dismiss timer token
+                                
+                                // 1. Present toast & clear active modal selection
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showRestToast = true
                                     selectedDay = nil
                                 }
                             } else {
@@ -180,19 +177,24 @@ struct WorkoutHeatmapView: View {
                 .padding(.vertical, 10)
                 .background(Color(white: 0.12), in: Capsule())
                 .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
-                .errorShake(trigger: shakeTrigger)
+                .errorShake(trigger: shakeOffset)
                 .transition(.asymmetric(
                     insertion: .move(edge: .bottom).combined(with: .opacity),
                     removal: .opacity
-                ))
+                    ))
                 .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            showRestToast = false
-                        }
+                    // Trigger shake immediately when the toast appears on screen
+                    withAnimation(.spring(response: 0.18, dampingFraction: 0.2)) {
+                        shakeOffset = (shakeOffset == 0) ? 1 : 0
                     }
                 }
-                .frame(maxWidth: .infinity)
+                        .task(id: toastID) {
+                            try? await Task.sleep(nanoseconds: 2_000_000_000)
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                showRestToast = false
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
             }
         }
         .padding(16)
@@ -208,7 +210,7 @@ struct WorkoutHeatmapView: View {
         )
     }
 
-    // MARK: - Mock Data Generator
+    // MARK: - Mock Data
     static func generateMockData() -> [WorkoutDay] {
         let calendar = Calendar.current
         let today = Date()
@@ -266,8 +268,8 @@ struct WorkoutDetailModal: View {
                         .font(.system(size: 13, weight: .semibold))
                     
                     HStack(spacing: 12) {
-                        Label("\(day.durationMinutes) mins", systemImage: "clock")
-                        Label(day.location ?? "Gym", systemImage: day.location == "Home" ? "house.fill" : "building.2.fill")
+                        Label("\(day.durationMinutes) mins", systemImage: "clock.fill")
+                        Label(day.location ?? "Gym", systemImage: day.location == "Home" ? "house.fill" : "dumbbell.fill")
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -275,16 +277,16 @@ struct WorkoutDetailModal: View {
                 
                 Spacer()
                 
-                // Top-Right Icon-Only Close Button
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(4)
-                }
-            }
-            .padding(12)
-            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                // Top-Right Icon-Only Close Button (No Background / No Text)
+                                Button(action: onClose) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                        .padding(4)
+                                }
+                            }
+                            .padding(12)
+                            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             // Music / Playlist Link Card
             if let song = day.songs.first, let url = URL(string: song.playlistURL) {
