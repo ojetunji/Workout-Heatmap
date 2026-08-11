@@ -6,9 +6,9 @@ Interactive workout heatmap prototype built in SwiftUI. Inspired by GitHub-style
 
 ## Highlights
 
-### 1. Dynamic Heatmap Bars
-* **31-Day Responsive Layout:** Distributes bars edge-to-edge using dynamic `Spacer()` alignment so the last bar aligns flush with top header badges.
-* **Selection Dynamics:** Tapping an active workout day expands its bar height (`32pt` → `48pt`) with a glowing pink shadow while dimming non-selected bars (`1.0` → `0.35` opacity).
+### 1. Heatmap Bars
+* **Responsive Layout:** Distributes bars edge-to-edge using dynamic `Spacer()` alignment so the last bar aligns flush with top header badges.
+* **Selecting Dynamics:** Tapping an active workout day expands its bar height (`32pt` → `48pt`) with a glowing pink shadow while dimming non-selected bars (`1.0` → `0.35` opacity).
 * **Spring Animation:** Smooth selection changes powered by `.spring(response: 0.3, dampingFraction: 0.7)`.
 
 ---
@@ -16,7 +16,7 @@ Interactive workout heatmap prototype built in SwiftUI. Inspired by GitHub-style
 ### 2. Rest Day Toast & 'Shake' Micro-Animation
 * **Haptic Feedback:** Triggers native system haptics (`.sensoryFeedback(.error)`) on rest day selection.
 * **Horizontal Sine-Wave Shake:** Uses a custom `GeometryEffect` (`ShakeEffect`) driven by `animatableData` to perform a springy horizontal error shake.
-* **Self-Healing Dismissal Timer:** Uses a unique `@State private var toastID` token to cleanly reset auto-dismiss timers when tapping rest bars repeatedly without interrupting the shake physics.
+* **Dismissal Timer:** Uses a unique `@State private var toastID` token to cleanly reset auto-dismiss timers when tapping rest bars repeatedly without interrupting the shake physics.
 
 ---
 
@@ -28,7 +28,7 @@ Interactive workout heatmap prototype built in SwiftUI. Inspired by GitHub-style
 ---
 
 ### 4. Interactive Playlist Card & Spotify Integration
-* **Asynchronous Artwork Fetching:** Uses a custom `SpotifyThumbnailView` component that falls back to remote Spotify oEmbed metadata (`https://open.spotify.com/oembed?url=...`) via `AsyncImage` if a local Asset image isn't available.
+* **Asynchronous Thumbnail Fetching:** Uses a custom `SpotifyThumbnailView` component that falls back to remote Spotify oEmbed metadata (`https://open.spotify.com/oembed?url=...`) via `AsyncImage` if a local Asset image isn't available.
 * **Hover & Press States:** Responds with scaling (`1.01` on hover, `0.98` on click) and subtle background shifts.
 * **Cross-Platform URL Handlers:** Utilizes SwiftUI's `@Environment(\.openURL)` to trigger native deep-linking to Spotify playlists across iOS and macOS without relying on UIKit's `UIApplication`.
 
