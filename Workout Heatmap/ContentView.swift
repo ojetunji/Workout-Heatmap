@@ -12,6 +12,7 @@ struct Song: Identifiable {
     let title: String
     let artist: String
     let playlistURL: String
+    let imageName: String? // Local asset name (e.g., "novia-robot-cover")
 }
 
 struct WorkoutDay: Identifiable {
@@ -83,9 +84,9 @@ struct WorkoutHeatmapView: View {
             // MARK: Top Header & Stat Badges
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("August 2026")
+                    Text("July 2026")
                         .font(.system(size: 16, weight: .bold))
-                    Text("Past 30 Days")
+                    Text("Past 31 Days")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -96,13 +97,14 @@ struct WorkoutHeatmapView: View {
                     HStack(spacing: 3) {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.system(size: 10))
-                            .foregroundStyle(.pink)
+                            .foregroundStyle(.yellow)
                         Text("\(totalActiveDays) workouts")
                             .font(.system(size: 11, weight: .medium))
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.pink.opacity(0.1), in: Capsule())
+                    .background(Color.yellow.opacity(0.3
+                                                    ), in: Capsule())
 
                     HStack(spacing: 3) {
                         Image(systemName: "flame.fill")
@@ -113,14 +115,13 @@ struct WorkoutHeatmapView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.1), in: Capsule())
+                    .background(Color.orange.opacity(0.2), in: Capsule())
                 }
             }
             
             // MARK: Vertical Heatmap
-            HStack(spacing: 8
-            ) {
-                ForEach(days) { day in
+            HStack(spacing: 0) {
+                ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                     let isSelected = selectedDay?.id == day.id
                     let isAnySelected = selectedDay != nil
                     
@@ -133,12 +134,17 @@ struct WorkoutHeatmapView: View {
                         .onTapGesture {
                             if day.durationMinutes == 0 {
                                 errorHapticFeedback += 1
-                                toastID = UUID() // Refresh the dismiss timer token
+                                toastID = UUID()
                                 
-                                // 1. Present toast & clear active modal selection
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showRestToast = true
-                                    selectedDay = nil
+                                if showRestToast {
+                                    withAnimation(.spring(response: 0.18, dampingFraction: 0.2)) {
+                                        shakeOffset = (shakeOffset == 0) ? 1 : 0
+                                    }
+                                } else {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        showRestToast = true
+                                        selectedDay = nil
+                                    }
                                 }
                             } else {
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -146,8 +152,14 @@ struct WorkoutHeatmapView: View {
                                 }
                             }
                         }
+                    
+                    // Equal spacing between bars to push the last bar flush to the right edge
+                    if index < days.count - 1 {
+                        Spacer(minLength: 2)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity)
             .frame(height: 50)
             .sensoryFeedback(.error, trigger: errorHapticFeedback)
             
@@ -216,16 +228,16 @@ struct WorkoutHeatmapView: View {
         let today = Date()
         
         let sampleWorkouts = [
-            ("Upper Body Push", "figure.strengthtraining.traditional"),
-            ("Lower Body Heavy", "figure.squat"),
-            ("Cardio & Core", "figure.run"),
-            ("Pull & Biceps", "figure.cross.training")
+            ("Shoulders & Triceps", "figure.strengthtraining.traditional"),
+            ("Quads & Adductors", "figure.strengthtraining.functional"),
+            ("Cardio & Core", "figure.core.training"),
+            ("Back & Biceps", "figure.indoor.rowing")
         ]
         
         let sampleSongs = [
-            Song(title: "Novia Robot", artist: "Rosalia", playlistURL: "https://open.spotify.com/track/501aZny32oS5iewdx3e4Eu?si=9f1b84d3164a4d0b"),
-            Song(title: "Tennessee Heat", artist: "Katie Tupper", playlistURL: "https://open.spotify.com"),
-            Song(title: "Be About You", artist: "Winston Surfshirt", playlistURL: "https://open.spotify.com")
+            Song(title: "Novia Robot", artist: "Rosalia", playlistURL: "https://open.spotify.com/track/501aZny32oS5iewdx3e4Eu?si=9f1b84d3164a4d0b",imageName: "Rosalia_Lux"),
+            Song(title: "Ungenzani", artist: "Dlala Thunkzin, MK Productions", playlistURL: "https://open.spotify.com/track/4vGofrv3muNtIaJHsq7Cj1?si=dccd5e60166a44c6", imageName: "Ungenzani"),
+            Song(title: "Tenner - Yosa & Kevin Lndn Remix", artist: "Lojay, Yosa, Kevin Lndn", playlistURL: "https://open.spotify.com/track/0dZxsrOQHkBp6FXBoRS8JS?si=ad5a0fa4e6534358", imageName: "tenner")
         ]
 
         return (0..<30).compactMap { offset in
@@ -253,104 +265,218 @@ struct WorkoutHeatmapView: View {
     }
 }
 
-// MARK: - Dropdown Modal Subview
+// MARK: - Dropdown Modal
 struct WorkoutDetailModal: View {
     let day: WorkoutDay
     let onClose: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             
-            // Header Row with Top-Right Close Button
+            // 1. Top Header Row (Workout Info + Integrated Close Button)
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
+                // Workout Info
+                VStack(alignment: .leading, spacing: 10) {
                     Label(day.workoutType ?? "Workout", systemImage: day.typeIcon ?? "figure.run")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
                     
-                    HStack(spacing: 12) {
-                        Label("\(day.durationMinutes) mins", systemImage: "clock.fill")
-                        Label(day.location ?? "Gym", systemImage: day.location == "Home" ? "house.fill" : "dumbbell.fill")
+                    // White Emoji Badges
+                    HStack(spacing: 6) {
+                        // Duration Badge
+                        HStack(spacing: 4) {
+                            Text("⏱️")
+                                .font(.system(size: 10))
+                            Text("\(day.durationMinutes) mins")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.primary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white, in: Capsule())
+                        .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
+
+                        // Location Badge
+                        HStack(spacing: 4) {
+                            Text(day.location == "Home" ? "🏠" : "🏋️‍♂️")
+                                .font(.system(size: 10))
+                            Text(day.location ?? "Gym")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.primary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white, in: Capsule())
+                        .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 }
                 
-                Spacer()
-                
-                // Top-Right Icon-Only Close Button (No Background / No Text)
-                                Button(action: onClose) {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundStyle(.secondary)
-                                        .padding(4)
-                                }
-                            }
-                            .padding(12)
-                            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Spacer(minLength: 8)
 
-            // Music / Playlist Link Card
-            if let song = day.songs.first, let url = URL(string: song.playlistURL) {
-                Link(destination: url) {
-                    HStack(spacing: 12) {
-                        // Squoval Thumbnail Image
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            
-                            Image(systemName: "music.note.list")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(.white)
-                        }
-                        .frame(width: 44, height: 44)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Workout Playlist")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.primary)
-                            
-                            Text("\(song.title) • \(song.artist)")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(10)
-                    .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                    )
+                // High-Contrast Black Close Button
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(12)
+            .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            // 2. Playlist Section Header & Card
+            if let song = day.songs.first {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("WORKOUT PLAYLIST")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 2)
+
+                    InteractivePlaylistCard(song: song)
                 }
             }
         }
-        .padding(12)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.gray.opacity(0.1))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.08), radius: 14, x: 0, y: 6)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
+    }
+}
+// MARK: - Interactive Music Card (Hover & Click States)
+struct InteractivePlaylistCard: View {
+    let song: Song
+    @Environment(\.openURL) private var openURL // 1. Add Environment Key
+    @State private var isPressed: Bool = false
+    @State private var isHovered: Bool = false
+
+    var body: some View {
+        Button(action: {
+            if let url = URL(string: song.playlistURL) {
+                openURL(url) // 2. Use openURL instead of UIApplication
+            }
+        }) {
+            HStack(spacing: 12) {
+                SpotifyThumbnailView(imageName: song.imageName, urlString: song.playlistURL)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(song.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    
+                    Text(song.artist)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            .padding(10)
+            .background(
+                Color.black.opacity(isPressed ? 0.07 : (isHovered ? 0.05 : 0.03)),
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+            .scaleEffect(isPressed ? 0.98 : (isHovered ? 1.01 : 1.0))
+            .animation(.easeOut(duration: 0.15), value: isPressed)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        ._onButtonGesture { pressing in
+            isPressed = pressing
+        } perform: {}
     }
 }
 
-// MARK: - Preview Window
-#Preview("Centered Device Prototype") {
-    ZStack {
-        // Multi Platform Screen Background
-        Color(.white)
-            .ignoresSafeArea()
+struct SpotifyThumbnailView: View {
+    let imageName: String?
+    let urlString: String
+    @State private var imageURL: URL?
+
+    private var fallbackIcon: some View {
+        ZStack {
+            Color.gray.opacity(0.15)
+            Image(systemName: "music.note")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            // 1. Check for Local Asset Image
+            if let imageName = imageName, !imageName.isEmpty {
+                Image(imageName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            
+            // 2. Fall back to Remote Spotify oEmbed Image
+            } else if let imageURL = imageURL {
+                AsyncImage(url: imageURL) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        fallbackIcon
+                    }
+                }
+            
+            // 3. Fallback placeholder icon
+            } else {
+                fallbackIcon
+            }
+        }
+        .frame(width: 44, height: 44)
+        .background(Color.black.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .task(id: urlString) {
+            if imageName == nil || imageName?.isEmpty == true {
+                await fetchThumbnail()
+            }
+        }
+    }
+
+    private func fetchThumbnail() async {
+        guard let encoded = urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let reqURL = URL(string: "https://open.spotify.com/oembed?url=\(encoded)") else { return }
         
-        // Centered Card Container with Inset Padding
-        WorkoutHeatmapView()
-            .frame(maxWidth: 360)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 40)
+        do {
+            let (data, _) = try await URLSession.shared.data(from: reqURL)
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let thumbnailString = json["thumbnail_url"] as? String,
+               let parsedURL = URL(string: thumbnailString) {
+                await MainActor.run {
+                    self.imageURL = parsedURL
+                }
+            }
+        } catch {
+            // Fails silently to fallbackIcon
+        }
     }
 }
+// MARK: - Preview Window
+#Preview("Interaction Showcase") {
+    ZStack {
+        // Soft Canvas Background (Khagwal off-white)
+        Color(red: 0.96, green: 0.96, blue: 0.97)
+            .ignoresSafeArea()
+        
+        // Centered Floating Card Frame
+        VStack {
+            WorkoutHeatmapView()
+                .frame(width: 340) // Fixed width for mobile aspect ratio
+        }
+        .padding(32) // Outer margin around the card
+    }
+    .frame(width: 500, height: 600) // Fixed canvas size for screen recording
+    }
