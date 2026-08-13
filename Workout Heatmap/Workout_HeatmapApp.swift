@@ -11,7 +11,7 @@ import SwiftUI
 struct Workout_HeatmapApp: App {
     var body: some Scene {
         WindowGroup {
-            WorkoutHeatmapView()
+            ContentView()
         }
     }
 }

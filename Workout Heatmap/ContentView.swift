@@ -6,19 +6,18 @@
 //
 import SwiftUI
 
-// MARK: - Models
 struct Song: Identifiable {
     let id = UUID()
     let title: String
     let artist: String
     let playlistURL: String
-    let imageName: String? // Local asset name (e.g., "novia-robot-cover")
+    let imageName: String?
 }
 
 struct WorkoutDay: Identifiable {
     let id = UUID()
     let date: Date
-    let durationMinutes: Int // 0 = rest day
+    let durationMinutes: Int
     let workoutType: String?
     let typeIcon: String?
     let location: String?
@@ -38,7 +37,6 @@ struct WorkoutDay: Identifiable {
     }
 }
 
-// MARK: - Shake Effect
 struct ShakeEffect: GeometryEffect {
     var animatableData: CGFloat
 
@@ -53,9 +51,8 @@ struct ShakeEffect: GeometryEffect {
             self.modifier(ShakeEffect(animatableData: trigger))   }
 }
 
-// MARK: - Main View
-struct WorkoutHeatmapView: View {
-    @State private var days: [WorkoutDay] = WorkoutHeatmapView.generateMockData()
+struct ContentView: View {
+    @State private var days: [WorkoutDay] = ContentView.generateMockData()
     @State private var selectedDay: WorkoutDay? = nil
     @State private var showRestToast: Bool = false
     @State private var shakeOffset: CGFloat = 0
@@ -81,7 +78,6 @@ struct WorkoutHeatmapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             
-            // MARK: Top Header & Stat Badges
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("July 2026")
@@ -119,7 +115,6 @@ struct WorkoutHeatmapView: View {
                 }
             }
             
-            // MARK: Vertical Heatmap
             HStack(spacing: 0) {
                 ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                     let isSelected = selectedDay?.id == day.id
@@ -153,7 +148,6 @@ struct WorkoutHeatmapView: View {
                             }
                         }
                     
-                    // Equal spacing between bars to push the last bar flush to the right edge
                     if index < days.count - 1 {
                         Spacer(minLength: 2)
                     }
@@ -163,7 +157,6 @@ struct WorkoutHeatmapView: View {
             .frame(height: 50)
             .sensoryFeedback(.error, trigger: errorHapticFeedback)
             
-            // MARK: Expandable Dropdown Card
             if let day = selectedDay {
                 WorkoutDetailModal(day: day) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -176,7 +169,6 @@ struct WorkoutHeatmapView: View {
                 ))
             }
             
-            // MARK: Toast PopUp
             if showRestToast {
                 HStack(spacing: 8) {
                     Text("🛌")
@@ -195,7 +187,6 @@ struct WorkoutHeatmapView: View {
                     removal: .opacity
                     ))
                 .onAppear {
-                    // Trigger shake immediately when the toast appears on screen
                     withAnimation(.spring(response: 0.18, dampingFraction: 0.2)) {
                         shakeOffset = (shakeOffset == 0) ? 1 : 0
                     }
@@ -222,7 +213,6 @@ struct WorkoutHeatmapView: View {
         )
     }
 
-    // MARK: - Mock Data
     static func generateMockData() -> [WorkoutDay] {
         let calendar = Calendar.current
         let today = Date()
@@ -265,7 +255,6 @@ struct WorkoutHeatmapView: View {
     }
 }
 
-// MARK: - Dropdown Modal
 struct WorkoutDetailModal: View {
     let day: WorkoutDay
     let onClose: () -> Void
@@ -273,7 +262,6 @@ struct WorkoutDetailModal: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             
-            // 1. Top Header Row (Workout Info + Integrated Close Button)
             HStack(alignment: .top) {
                 // Workout Info
                 VStack(alignment: .leading, spacing: 10) {
@@ -313,7 +301,7 @@ struct WorkoutDetailModal: View {
                 
                 Spacer(minLength: 8)
 
-                // High-Contrast Black Close Button
+                // Close Button
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
@@ -349,7 +337,6 @@ struct WorkoutDetailModal: View {
         )
     }
 }
-// MARK: - Interactive Music Card (Hover & Click States)
 struct InteractivePlaylistCard: View {
     let song: Song
     @Environment(\.openURL) private var openURL // 1. Add Environment Key
@@ -359,7 +346,7 @@ struct InteractivePlaylistCard: View {
     var body: some View {
         Button(action: {
             if let url = URL(string: song.playlistURL) {
-                openURL(url) // 2. Use openURL instead of UIApplication
+                openURL(url)
             }
         }) {
             HStack(spacing: 12) {
@@ -413,13 +400,11 @@ struct SpotifyThumbnailView: View {
 
     var body: some View {
         ZStack {
-            // 1. Check for Local Asset Image
             if let imageName = imageName, !imageName.isEmpty {
                 Image(imageName)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             
-            // 2. Fall back to Remote Spotify oEmbed Image
             } else if let imageURL = imageURL {
                 AsyncImage(url: imageURL) { phase in
                     if let image = phase.image {
@@ -431,7 +416,6 @@ struct SpotifyThumbnailView: View {
                     }
                 }
             
-            // 3. Fallback placeholder icon
             } else {
                 fallbackIcon
             }
@@ -460,23 +444,19 @@ struct SpotifyThumbnailView: View {
                 }
             }
         } catch {
-            // Fails silently to fallbackIcon
         }
     }
 }
-// MARK: - Preview Window
-#Preview("Interaction Showcase") {
+#Preview("Centered Device Prototype") {
     ZStack {
-        // Soft Canvas Background (Khagwal off-white)
-        Color(red: 0.96, green: 0.96, blue: 0.97)
+        // Multi Platform Screen Background
+        Color(.white)
             .ignoresSafeArea()
         
-        // Centered Floating Card Frame
-        VStack {
-            WorkoutHeatmapView()
-                .frame(width: 340) // Fixed width for mobile aspect ratio
-        }
-        .padding(32) // Outer margin around the card
+        // Centered Card Container with Inset Padding
+        ContentView()
+            .frame(maxWidth: 360)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 40)
     }
-    .frame(width: 500, height: 600) // Fixed canvas size for screen recording
-    }
+}
